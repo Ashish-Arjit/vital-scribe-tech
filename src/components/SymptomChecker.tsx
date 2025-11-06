@@ -10,10 +10,13 @@ import {
   AlertCircle, 
   User, 
   Calendar, 
-  Users 
+  Users,
+  Loader2
 } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from "@/components/ui/checkbox";
+import { useMedicine } from "@/contexts/MedicineContext";
+import { toast } from "sonner";
 
 const commonSymptoms = [
   "Fever", "Headache", "Cough", "Sore Throat", "Runny Nose",
@@ -22,6 +25,7 @@ const commonSymptoms = [
 ];
 
 export const SymptomChecker = () => {
+  const { getRecommendations, isLoading } = useMedicine();
   const [selectedSymptoms, setSelectedSymptoms] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [age, setAge] = useState("");
@@ -29,6 +33,7 @@ export const SymptomChecker = () => {
   const [duration, setDuration] = useState("");
   const [isPregnant, setIsPregnant] = useState(false);
   const [isNursing, setIsNursing] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const filteredSymptoms = commonSymptoms.filter(symptom =>
     symptom.toLowerCase().includes(searchTerm.toLowerCase()) &&
@@ -44,18 +49,32 @@ export const SymptomChecker = () => {
   };
 
   const handleGetRecommendations = () => {
-    // This will be connected to ML backend later
-    console.log({
-      symptoms: selectedSymptoms,
-      age,
-      gender,
-      duration,
-      isPregnant,
-      isNursing
-    });
+    if (!isFormValid) return;
     
-    // Scroll to recommendations section
-    document.getElementById("recommendations")?.scrollIntoView({ behavior: "smooth" });
+    setIsProcessing(true);
+    
+    // Small delay for better UX
+    setTimeout(() => {
+      getRecommendations({
+        symptoms: selectedSymptoms,
+        age: parseInt(age),
+        gender,
+        duration,
+        isPregnant,
+        isNursing
+      });
+      
+      setIsProcessing(false);
+      
+      toast.success("Recommendations generated!", {
+        description: "Scroll down to view your personalized medicine recommendations."
+      });
+      
+      // Scroll to recommendations section
+      setTimeout(() => {
+        document.getElementById("recommendations")?.scrollIntoView({ behavior: "smooth" });
+      }, 300);
+    }, 800);
   };
 
   const isFormValid = selectedSymptoms.length > 0 && age && gender && duration;
@@ -209,14 +228,27 @@ export const SymptomChecker = () => {
                 size="lg"
                 className="w-full shadow-medium hover:shadow-strong"
                 onClick={handleGetRecommendations}
-                disabled={!isFormValid}
+                disabled={!isFormValid || isLoading || isProcessing}
               >
-                Get Medicine Recommendations
+                {isProcessing ? (
+                  <>
+                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                    Analyzing Symptoms...
+                  </>
+                ) : (
+                  "Get Medicine Recommendations"
+                )}
               </Button>
 
               {!isFormValid && (
                 <p className="text-sm text-muted-foreground text-center">
                   Please select at least one symptom and fill in all required fields
+                </p>
+              )}
+              
+              {isLoading && (
+                <p className="text-sm text-muted-foreground text-center">
+                  Loading medicine database...
                 </p>
               )}
             </div>

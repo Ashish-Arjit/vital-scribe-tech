@@ -7,45 +7,57 @@ import {
   Clock, 
   AlertTriangle,
   Download,
-  Plus
+  Plus,
+  FileText,
+  ChevronDown
 } from "lucide-react";
-
-// Mock data - will be replaced with actual ML predictions
-const mockRecommendations = [
-  {
-    id: 1,
-    name: "Acetaminophen",
-    dosage: "500mg",
-    frequency: "Every 6 hours",
-    confidence: 92,
-    description: "Pain reliever and fever reducer",
-    warnings: ["Do not exceed 4000mg per day", "Avoid if liver disease"]
-  },
-  {
-    id: 2,
-    name: "Ibuprofen",
-    dosage: "400mg",
-    frequency: "Every 8 hours",
-    confidence: 88,
-    description: "Anti-inflammatory and pain reliever",
-    warnings: ["Take with food", "Avoid if stomach ulcers"]
-  },
-  {
-    id: 3,
-    name: "Diphenhydramine",
-    dosage: "25mg",
-    frequency: "Every 4-6 hours",
-    confidence: 85,
-    description: "Antihistamine for allergy symptoms",
-    warnings: ["May cause drowsiness", "Avoid driving"]
-  }
-];
+import { useMedicine } from "@/contexts/MedicineContext";
+import { toast } from "sonner";
+import { useState } from "react";
 
 export const Recommendations = () => {
-  const handleAddToAlarms = (medicineId: number) => {
-    console.log("Adding medicine to alarms:", medicineId);
-    // This will integrate with the alarm system
+  const { recommendations, patientInfo } = useMedicine();
+  const [expandedCards, setExpandedCards] = useState<Set<number>>(new Set());
+
+  const toggleCard = (id: number) => {
+    const newExpanded = new Set(expandedCards);
+    if (newExpanded.has(id)) {
+      newExpanded.delete(id);
+    } else {
+      newExpanded.add(id);
+    }
+    setExpandedCards(newExpanded);
   };
+
+  const handleAddToAlarms = (medicineId: number, medicineName: string) => {
+    console.log("Adding medicine to alarms:", medicineId);
+    toast.success(`${medicineName} added to reminders!`, {
+      description: "You can manage your medicine reminders in the Medicine Reminders section."
+    });
+  };
+
+  const handleDownloadPDF = () => {
+    toast.info("PDF download feature coming soon!", {
+      description: "This will generate a detailed report of your recommendations."
+    });
+  };
+
+  const handleDownloadCSV = () => {
+    toast.info("CSV export feature coming soon!", {
+      description: "This will export your recommendations in spreadsheet format."
+    });
+  };
+
+  // Don't show section if no recommendations
+  if (recommendations.length === 0) {
+    return null;
+  }
+
+  const hasHighRiskWarning = patientInfo && (
+    patientInfo.isPregnant || 
+    patientInfo.isNursing || 
+    patientInfo.age < 1
+  );
 
   return (
     <section id="recommendations" className="py-20">
@@ -56,20 +68,37 @@ export const Recommendations = () => {
               Your Personalized Recommendations
             </h2>
             <p className="text-lg text-muted-foreground">
-              Based on your symptoms and health profile
+              Found {recommendations.length} medicine{recommendations.length !== 1 ? 's' : ''} for your symptoms
             </p>
+            {patientInfo && (
+              <div className="flex flex-wrap justify-center gap-2 text-sm">
+                <Badge variant="outline">Age: {patientInfo.age}</Badge>
+                <Badge variant="outline">Symptoms: {patientInfo.symptoms.length}</Badge>
+                <Badge variant="outline">Duration: {patientInfo.duration}</Badge>
+              </div>
+            )}
           </div>
 
           {/* Safety Alert */}
-          <Card className="p-6 border-warning bg-warning/5">
+          <Card className={`p-6 ${hasHighRiskWarning ? 'border-destructive bg-destructive/5' : 'border-warning bg-warning/5'}`}>
             <div className="flex gap-4">
-              <AlertTriangle className="w-6 h-6 text-warning flex-shrink-0" />
+              <AlertTriangle className={`w-6 h-6 flex-shrink-0 ${hasHighRiskWarning ? 'text-destructive' : 'text-warning'}`} />
               <div className="space-y-2">
-                <h3 className="font-semibold text-lg">Important Safety Information</h3>
+                <h3 className="font-semibold text-lg">
+                  {hasHighRiskWarning ? '⚠️ IMPORTANT: Special Precautions Required' : 'Important Safety Information'}
+                </h3>
                 <p className="text-sm text-muted-foreground">
-                  These recommendations are based on AI analysis and should not replace professional medical advice. 
-                  Please consult a healthcare provider before taking any medication, especially if symptoms persist 
-                  for more than a few days or worsen.
+                  These recommendations are based on symptom analysis from a medical dataset and should not replace professional medical advice. 
+                  {hasHighRiskWarning && (
+                    <strong className="block mt-2 text-destructive">
+                      Due to your health profile (pregnancy, nursing, or infant age), it is CRITICAL that you consult 
+                      a healthcare provider before taking ANY medication.
+                    </strong>
+                  )}
+                  {!hasHighRiskWarning && (
+                    <> Please consult a healthcare provider before taking any medication, especially if symptoms persist 
+                    for more than a few days or worsen.</>
+                  )}
                 </p>
               </div>
             </div>
@@ -77,7 +106,10 @@ export const Recommendations = () => {
 
           {/* Recommendations List */}
           <div className="space-y-6">
-            {mockRecommendations.map((medicine, index) => (
+            {recommendations.map((medicine, index) => {
+              const isExpanded = expandedCards.has(medicine.id);
+              
+              return (
               <Card 
                 key={medicine.id}
                 className="p-6 shadow-medium hover:shadow-strong transition-all bg-gradient-card"
@@ -125,20 +157,40 @@ export const Recommendations = () => {
                         </div>
                       </div>
 
-                      <div className="space-y-2">
-                        <h4 className="font-semibold text-sm flex items-center gap-2">
-                          <AlertTriangle className="w-4 h-4 text-warning" />
-                          Warnings & Precautions
-                        </h4>
-                        <ul className="space-y-1">
-                          {medicine.warnings.map((warning, idx) => (
-                            <li key={idx} className="text-sm text-muted-foreground flex items-start gap-2">
-                              <span className="text-warning">•</span>
-                              {warning}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
+                      {isExpanded && (
+                        <div className="space-y-4 pt-4 border-t border-border">
+                          <div className="grid md:grid-cols-2 gap-4 text-sm">
+                            <div>
+                              <p className="font-semibold mb-1">Matched Symptom:</p>
+                              <Badge variant="outline">{medicine.symptom}</Badge>
+                            </div>
+                            <div>
+                              <p className="font-semibold mb-1">Age Group:</p>
+                              <Badge variant="outline">{medicine.ageGroup}</Badge>
+                            </div>
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <h4 className="font-semibold text-sm flex items-center gap-2">
+                              <AlertTriangle className="w-4 h-4 text-warning" />
+                              Warnings & Precautions
+                            </h4>
+                            <ul className="space-y-1">
+                              {medicine.warnings.map((warning, idx) => (
+                                <li key={idx} className="text-sm text-muted-foreground flex items-start gap-2">
+                                  <span className="text-warning">•</span>
+                                  {warning}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                          
+                          <div className="p-3 bg-muted/50 rounded-lg text-sm">
+                            <p className="font-semibold mb-1">Complete Dosage Instructions:</p>
+                            <p className="text-muted-foreground">{medicine.dosage}</p>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -146,32 +198,55 @@ export const Recommendations = () => {
                     <Button 
                       size="sm"
                       className="flex-1 md:flex-none"
-                      onClick={() => handleAddToAlarms(medicine.id)}
+                      onClick={() => handleAddToAlarms(medicine.id, medicine.name)}
                     >
                       <Plus className="w-4 h-4 mr-2" />
                       Add to Alarms
                     </Button>
-                    <Button size="sm" variant="outline" className="flex-1 md:flex-none">
-                      <Download className="w-4 h-4 mr-2" />
-                      Details
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      className="flex-1 md:flex-none"
+                      onClick={() => toggleCard(medicine.id)}
+                    >
+                      <ChevronDown className={`w-4 h-4 mr-2 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                      {isExpanded ? 'Less' : 'More'}
                     </Button>
                   </div>
                 </div>
               </Card>
-            ))}
+            );
+            })}
           </div>
 
           {/* Export Options */}
           <div className="flex flex-wrap gap-4 justify-center pt-8">
-            <Button variant="outline" size="lg">
-              <Download className="w-5 h-5 mr-2" />
+            <Button variant="outline" size="lg" onClick={handleDownloadPDF}>
+              <FileText className="w-5 h-5 mr-2" />
               Download as PDF
             </Button>
-            <Button variant="outline" size="lg">
+            <Button variant="outline" size="lg" onClick={handleDownloadCSV}>
               <Download className="w-5 h-5 mr-2" />
               Export to CSV
             </Button>
           </div>
+          
+          {/* Additional Information */}
+          <Card className="p-6 bg-primary/5 border-primary/20">
+            <div className="text-center space-y-2">
+              <h3 className="font-semibold">Need to adjust your symptoms?</h3>
+              <p className="text-sm text-muted-foreground">
+                Scroll back up to the symptom checker to modify your inputs and get updated recommendations.
+              </p>
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => document.getElementById("symptom-checker")?.scrollIntoView({ behavior: "smooth" })}
+              >
+                Back to Symptom Checker
+              </Button>
+            </div>
+          </Card>
         </div>
       </div>
     </section>
